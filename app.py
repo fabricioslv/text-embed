@@ -79,16 +79,12 @@ try:
             st.warning("Não foi possível carregar documentos do banco de dados. O aplicativo funcionará com dados temporários.")
             st.write(f"Erro: {str(e)}")
             st.write("Tipo de erro:", type(e).__name__)
-            import traceback
-            st.code(traceback.format_exc())
     
     carregar_documentos()
 except Exception as e:
     st.error("Não foi possível conectar ao banco de dados Supabase.")
     st.write(f"Erro: {str(e)}")
     st.write("Tipo de erro:", type(e).__name__)
-    import traceback
-    st.code(traceback.format_exc())
     db = None
     doc_library = None
     chunker = None
