@@ -7,6 +7,14 @@ from dotenv import load_dotenv
 # Carregar variáveis de ambiente
 load_dotenv()
 
+# Depuração - imprimir informações sobre o carregamento das variáveis de ambiente
+print("=== Depuração do Supabase ===")
+print("Diretório atual:", os.getcwd())
+print("Arquivo .env existe:", os.path.exists(".env"))
+print("SUPABASE_URL:", os.environ.get("SUPABASE_URL"))
+print("SUPABASE_KEY existe:", os.environ.get("SUPABASE_KEY") is not None)
+print("=============================")
+
 class SupabaseDBManager:
     def __init__(self):
         # Obter URL e chave do Supabase das variáveis de ambiente

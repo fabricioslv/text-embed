@@ -18,6 +18,14 @@ from dotenv import load_dotenv
 # Carregar variáveis de ambiente
 load_dotenv()
 
+# Depuração - imprimir informações sobre o carregamento das variáveis de ambiente
+print("=== Depuração do App ===")
+print("Diretório atual:", os.getcwd())
+print("Arquivo .env existe:", os.path.exists(".env"))
+print("SUPABASE_URL:", os.environ.get("SUPABASE_URL"))
+print("SUPABASE_KEY existe:", os.environ.get("SUPABASE_KEY") is not None)
+print("========================")
+
 # Configurações iniciais
 st.set_page_config(page_title="Vetorizador de Documentos", layout="wide")
 st.markdown("""
@@ -70,11 +78,17 @@ try:
         except Exception as e:
             st.warning("Não foi possível carregar documentos do banco de dados. O aplicativo funcionará com dados temporários.")
             st.write(f"Erro: {str(e)}")
+            st.write("Tipo de erro:", type(e).__name__)
+            import traceback
+            st.code(traceback.format_exc())
     
     carregar_documentos()
 except Exception as e:
     st.error("Não foi possível conectar ao banco de dados Supabase.")
     st.write(f"Erro: {str(e)}")
+    st.write("Tipo de erro:", type(e).__name__)
+    import traceback
+    st.code(traceback.format_exc())
     db = None
     doc_library = None
     chunker = None
