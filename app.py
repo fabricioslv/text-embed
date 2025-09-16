@@ -5,6 +5,8 @@ import faiss
 import numpy as np
 from datetime import datetime
 import os
+# Configurar codificação para evitar problemas com EasyOCR
+os.environ['PYTHONIOENCODING'] = 'utf-8'
 from pdf2image import convert_from_bytes
 import easyocr
 from docx import Document
@@ -46,7 +48,8 @@ def load_model():
     return SentenceTransformer('all-MiniLM-L6-v2')
 
 model = load_model()
-reader = easyocr.Reader(['pt'], gpu=False)
+# Inicializar OCR sem barra de progresso para evitar problemas de codificação
+reader = easyocr.Reader(['pt'], gpu=False, verbose=False)
 embedding_dim = 384
 index = faiss.IndexFlatL2(embedding_dim)
 documentos = []
