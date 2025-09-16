@@ -21,20 +21,20 @@ def apply_migrations():
         db = SupabaseDBManager()
         supabase = db.supabase
         
-        print("Conexão com Supabase estabelecida com sucesso!")
+        print("Conexao com Supabase estabelecida com sucesso!")
         
         # Verificar se a tabela já existe
         try:
             response = supabase.table("documentos").select("id").limit(1).execute()
-            print("Tabela 'documentos' já existe.")
+            print("Tabela 'documentos' ja existe.")
             return True
         except Exception:
-            print("Tabela 'documentos' não encontrada. Criando...")
+            print("Tabela 'documentos' nao encontrada. Criando...")
         
         # Como estamos usando SQL migrations, vamos apenas mostrar as instruções
         print("\nPara criar a tabela 'documentos', execute o seguinte SQL no Supabase:")
         print("""
--- Habilitar a extensão vector (necessária para embeddings)
+-- Habilitar a extensao vector (necessaria para embeddings)
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Criar a tabela documentos
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS documentos (
     documento_principal_id INTEGER REFERENCES documentos(id)
 );
 
--- Criar índices
+-- Criar indices
 CREATE INDEX IF NOT EXISTS idx_documentos_nome ON documentos(nome);
 CREATE INDEX IF NOT EXISTS idx_documentos_data ON documentos(data);
 CREATE INDEX IF NOT EXISTS idx_documentos_tipo ON documentos(tipo);
@@ -63,39 +63,39 @@ CREATE INDEX IF NOT EXISTS idx_documentos_embedding ON documentos USING ivfflat 
 CREATE INDEX IF NOT EXISTS idx_documentos_chunk_embedding ON documentos USING ivfflat (chunk_embedding) WITH (lists = 100);
 CREATE INDEX IF NOT EXISTS idx_documentos_principal_id ON documentos(documento_principal_id);
 
--- Adicionar comentário à tabela
+-- Adicionar comentario a tabela
 COMMENT ON TABLE documentos IS 'Tabela principal para armazenamento de documentos e seus embeddings';
         """)
         
         return True
         
     except Exception as e:
-        print(f"Erro ao aplicar migrações: {e}")
+        print(f"Erro ao aplicar migracoes: {e}")
         return False
 
 def test_connection():
-    """Testa a conexão com o Supabase"""
+    """Testa a conexao com o Supabase"""
     try:
         db = SupabaseDBManager()
-        # Tentar uma operação simples
+        # Tentar uma operacao simples
         response = db.supabase.table("documentos").select("id").limit(1).execute()
-        print("Conexão com Supabase funcionando corretamente!")
+        print("Conexao com Supabase funcionando corretamente!")
         return True
     except Exception as e:
-        print(f"Erro na conexão com Supabase: {e}")
+        print(f"Erro na conexao com Supabase: {e}")
         return False
 
 if __name__ == "__main__":
-    print("=== Script de Migração do Supabase ===")
+    print("=== Script de Migracao do Supabase ===")
     
-    # Testar conexão
+    # Testar conexao
     if test_connection():
-        # Aplicar migrações
+        # Aplicar migracoes
         if apply_migrations():
-            print("\n✅ Migrações prontas para serem aplicadas!")
+            print("\n[OK] Migracoes prontas para serem aplicadas!")
             print("Copie o SQL acima e execute no painel do Supabase em SQL Editor.")
         else:
-            print("\n❌ Erro ao preparar migrações.")
+            print("\n[ERRO] Erro ao preparar migracoes.")
     else:
-        print("\n❌ Não foi possível conectar ao Supabase. Verifique suas credenciais.")
+        print("\n[ERRO] Nao foi possivel conectar ao Supabase. Verifique suas credenciais.")
 
