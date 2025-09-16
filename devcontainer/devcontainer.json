@@ -3,13 +3,17 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-  "settings": {
-    "terminal.integrated.defaultProfile.linux": "bash"
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-toolsai.jupyter"
+      ]
+    }
   },
-  "extensions": [
-    "ms-python.python",
-    "ms-toolsai.jupyter"
-  ],
   "forwardPorts": [8501],
   "postCreateCommand": "pip install -r requirements.txt",
   "remoteUser": "codespace"
