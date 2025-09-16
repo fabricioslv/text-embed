@@ -27,6 +27,13 @@ class SupabaseDBManager:
         
         # Criar cliente Supabase
         self.supabase: Client = create_client(url, key)
+        
+        # Testar conexão
+        try:
+            response = self.supabase.table("documentos").select("id").limit(1).execute()
+            print("Conexão com Supabase estabelecida com sucesso!")
+        except Exception as e:
+            print(f"Aviso: Erro ao testar conexão com Supabase: {e}")
 
     def save_document(self, nome, texto, embedding, doc_type="txt", metadata=None):
         """Salva um documento no Supabase"""
@@ -83,6 +90,9 @@ class SupabaseDBManager:
             return documentos
         except Exception as e:
             print(f"Erro ao carregar documentos: {e}")
+            print("Tipo de erro:", type(e).__name__)
+            import traceback
+            print("Traceback:", traceback.format_exc())
             return []
 
     def delete_document(self, doc_id):
