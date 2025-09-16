@@ -12,6 +12,7 @@ import pandas as pd
 import plotly.express as px
 from sklearn.metrics.pairwise import cosine_similarity
 from src.supabase_db import SupabaseDBManager
+from src.document_library import DocumentLibrary, DocumentChunker
 from dotenv import load_dotenv
 
 # Carregar variáveis de ambiente
@@ -24,6 +25,7 @@ st.markdown("""
 .big-title { font-size: 32px; font-weight: bold; color: #4CAF50; }
 .subtle { font-size: 16px; color: #777; margin-bottom: 20px; }
 .card { background-color: #f9f9f9; padding: 10px; border-radius: 8px; margin-bottom: 10px; box-shadow: 1px 1px 5px rgba(0,0,0,0.1); }
+.chunk-card { background-color: #e8f5e9; padding: 8px; border-radius: 5px; margin-bottom: 5px; border-left: 3px solid #4CAF50; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -31,7 +33,11 @@ st.markdown('<div class="big-title">📚 Vetorizador Inteligente de Documentos</
 st.markdown('<div class="subtle">Processamento de PDFs, DOCX e TXT com IA, busca semântica, exportação e dashboard completo.</div>', unsafe_allow_html=True)
 
 # Inicialização
-model = SentenceTransformer('all-MiniLM-L6-v2')
+@st.cache_resource
+def load_model():
+    return SentenceTransformer('all-MiniLM-L6-v2')
+
+model = load_model()
 reader = easyocr.Reader(['pt'], gpu=False)
 embedding_dim = 384
 index = faiss.IndexFlatL2(embedding_dim)
@@ -40,14 +46,27 @@ documentos = []
 # Banco de dados - agora usando Supabase
 try:
     db = SupabaseDBManager()
+    doc_library = DocumentLibrary(db.supabase)
+    chunker = DocumentChunker()
+    
     # Carrega documentos do banco
     def carregar_documentos():
         try:
             docs = db.load_documents()
             for doc in docs:
                 emb = doc["embedding"]
-                documentos.append({"nome": doc["nome"], "texto": doc["texto"], "embedding": emb})
-                index.add(np.array([emb]))
+                documentos.append({
+                    "id": doc["id"],
+                    "nome": doc["nome"], 
+                    "texto": doc["texto"], 
+                    "embedding": emb,
+                    "tipo": doc["tipo"],
+                    "data": doc["data"],
+                    "metadata": doc["metadata"]
+                })
+                if emb:  # Apenas adicionar ao índice se houver embedding
+                    index.add(np.array([emb]))
+            st.success(f"Carregados {len(documentos)} documentos do banco de dados.")
         except Exception as e:
             st.warning("Não foi possível carregar documentos do banco de dados. O aplicativo funcionará com dados temporários.")
             st.write(f"Erro: {str(e)}")
@@ -57,45 +76,99 @@ except Exception as e:
     st.error("Não foi possível conectar ao banco de dados Supabase.")
     st.write(f"Erro: {str(e)}")
     db = None
+    doc_library = None
+    chunker = None
 
 # Funções de extração
 def extrair_texto(file):
     ext = os.path.splitext(file.name)[1].lower()
     if ext == ".pdf":
-        imagens = convert_from_bytes(file.read())
-        texto = ""
-        for img in imagens:
-            resultado = reader.readtext(np.array(img), detail=0)
-            texto += "\n".join(resultado)
-        return texto
+        try:
+            imagens = convert_from_bytes(file.read())
+            texto = ""
+            for img in imagens:
+                resultado = reader.readtext(np.array(img), detail=0)
+                texto += "\n".join(resultado)
+            return texto
+        except Exception as e:
+            st.error(f"Erro ao processar PDF: {e}")
+            return ""
     elif ext == ".docx":
-        doc = Document(file)
-        return "\n".join([p.text for p in doc.paragraphs])
+        try:
+            doc = Document(file)
+            return "\n".join([p.text for p in doc.paragraphs])
+        except Exception as e:
+            st.error(f"Erro ao processar DOCX: {e}")
+            return ""
     elif ext == ".txt":
-        return file.read().decode('utf-8')
+        try:
+            return file.read().decode('utf-8')
+        except Exception as e:
+            st.error(f"Erro ao processar TXT: {e}")
+            return ""
     else:
         return "Formato não suportado."
+
+# Função para processar e armazenar documento com chunks
+def processar_documento(file, db, doc_library):
+    texto = extrair_texto(file)
+    if texto and len(texto) > 50:
+        try:
+            # Gerar embedding do documento completo
+            embedding = model.encode(texto)
+            
+            # Determinar tipo do documento
+            ext = os.path.splitext(file.name)[1].lower()
+            doc_type = ext.replace(".", "") if ext else "txt"
+            
+            # Metadados adicionais
+            metadata = {
+                "tamanho_original": len(texto),
+                "nome_arquivo": file.name,
+                "tipo_arquivo": doc_type,
+                "data_processamento": datetime.now().isoformat()
+            }
+            
+            # Salvar documento usando a biblioteca
+            doc_id = doc_library.store_document(
+                name=file.name,
+                text=texto,
+                embedding=embedding.tolist(),
+                doc_type=doc_type,
+                metadata=metadata
+            )
+            
+            return {
+                "id": doc_id,
+                "nome": file.name,
+                "texto": texto,
+                "embedding": embedding.tolist(),
+                "tipo": doc_type,
+                "data": datetime.now().isoformat(),
+                "metadata": metadata
+            }
+        except Exception as e:
+            st.error(f"Erro ao processar documento {file.name}: {e}")
+            return None
+    else:
+        return None
 
 # Upload e vetorização
 st.header("📂 Upload de Documentos")
 uploaded_files = st.file_uploader("Selecione seus arquivos", type=["pdf", "docx", "txt"], accept_multiple_files=True)
 
-if uploaded_files and db is not None:
+if uploaded_files and db is not None and doc_library is not None:
     for file in uploaded_files:
-        texto = extrair_texto(file)
-        if texto and len(texto) > 50:
-            embedding = model.encode(texto)
-            index.add(np.array([embedding]))
-            documentos.append({"nome": file.name, "texto": texto, "embedding": embedding.tolist()})
-            try:
-                db.save_document(file.name, texto, embedding.tolist())
+        with st.spinner(f"Processando {file.name}..."):
+            documento = processar_documento(file, db, doc_library)
+            if documento:
+                # Adicionar ao índice FAISS
+                index.add(np.array([documento["embedding"]]))
+                documentos.append(documento)
                 st.success(f"✅ {file.name} processado com sucesso.")
-            except Exception as e:
-                st.warning(f"⚠️ {file.name} processado localmente, mas não foi possível salvar no banco de dados.")
-                st.write(f"Erro: {str(e)}")
-        else:
-            st.warning(f"⚠️ {file.name} não pôde ser processado ou está vazio.")
-elif uploaded_files and db is None:
+            else:
+                st.warning(f"⚠️ {file.name} não pôde ser processado ou está vazio.")
+elif uploaded_files and (db is None or doc_library is None):
     st.error("Não é possível salvar documentos porque não há conexão com o banco de dados.")
 
 # Busca semântica
