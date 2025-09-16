@@ -1,41 +1,15 @@
-# Arquivos de ambiente
+# Arquivos e diretórios importantes para a aplicação
+
+app.py
+requirements.txt
+runtime.txt
+Procfile
 .env
-*.env
+documentos.db
 
-# Arquivos de banco de dados
-*.db
-*.sqlite
-*.sqlite3
+# Diretórios
+src/
+supabase/
 
-# Arquivos temporários
-*.tmp
-*.temp
-
-# Logs
-*.log
-
-# Arquivos compilados
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.so
-
-# Ambientes virtuais
-venv/
-env/
-.venv/
-.env/
-
-# Arquivos do sistema
-.DS_Store
-Thumbs.db
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Streamlit
-.streamlit/
+# Arquivos de configuração
+.gitignore
