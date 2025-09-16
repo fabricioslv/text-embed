@@ -10,32 +10,27 @@ Este projeto implementa um vetorizador inteligente de documentos com as seguinte
 ## Estrutura do Projeto
 
 ```
-src/
-  __init__.py
-  app.py
-  database.py
-  document_processor.py
-  search_engine.py
-  utils.py
-
-tests/
-  __init__.py
-  test_app.py
-  test_database.py
-  test_document_processor.py
-  test_search_engine.py
+.devcontainer/
+  devcontainer.json
 
 .github/
   workflows/
     ci-cd.yml
 
-.devcontainer/
-  devcontainer.json
+src/
+  database.py
+  supabase_db.py
+  utils.py
 
+app.py
 Dockerfile
 docker-compose.yml
-requirements.txt
+Procfile
 README.md
+requirements.txt
+runtime.txt
+.env
+documentos.db
 ```
 
 ## Como Executar
@@ -55,7 +50,7 @@ docker-compose up
 
 2. Execute a aplicação:
    ```bash
-   streamlit run src/app.py
+   streamlit run app.py
    ```
 
 ## Configuração

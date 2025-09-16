@@ -1,0 +1,41 @@
+# Arquivos de ambiente
+.env
+*.env
+
+# Arquivos de banco de dados
+*.db
+*.sqlite
+*.sqlite3
+
+# Arquivos temporários
+*.tmp
+*.temp
+
+# Logs
+*.log
+
+# Arquivos compilados
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+
+# Ambientes virtuais
+venv/
+env/
+.venv/
+.env/
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Streamlit
+.streamlit/

@@ -12,6 +12,10 @@ import pandas as pd
 import plotly.express as px
 from sklearn.metrics.pairwise import cosine_similarity
 from src.supabase_db import SupabaseDBManager
+from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente
+load_dotenv()
 
 # Configurações iniciais
 st.set_page_config(page_title="Vetorizador de Documentos", layout="wide")
