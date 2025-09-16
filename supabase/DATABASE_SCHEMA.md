@@ -40,52 +40,6 @@ A tabela `documentos` é a principal tabela do sistema, armazenando tanto docume
 6. `idx_documentos_chunk_embedding` - Índice IVFFlat no `chunk_embedding`
 7. `idx_documentos_principal_id` - Índice na coluna `documento_principal_id`
 
-### Views
-
-#### `documentos_stats`
-
-View que fornece estatísticas agregadas dos documentos:
-
-```sql
-SELECT 
-    COUNT(*) as total_documentos,
-    SUM(tamanho) as tamanho_total,
-    AVG(tamanho) as tamanho_medio,
-    MIN(data) as data_primeiro,
-    MAX(data) as data_ultimo,
-    COUNT(DISTINCT tipo) as tipos_diferentes
-FROM documentos;
-```
-
-### Funções
-
-#### `get_document_chunks(doc_id INTEGER)`
-
-Retorna todos os chunks de um documento específico:
-
-```sql
-SELECT chunk_id, chunk_text, chunk_embedding
-FROM documentos
-WHERE id = doc_id OR documento_principal_id = doc_id
-ORDER BY chunk_id;
-```
-
-#### `search_similar_documents(query_embedding VECTOR(384), limit_count INTEGER)`
-
-Busca documentos similares com base em um embedding de consulta:
-
-```sql
-SELECT 
-    id,
-    nome,
-    texto,
-    (1 - (embedding <=> query_embedding)) as similarity
-FROM documentos
-WHERE embedding IS NOT NULL
-ORDER BY embedding <=> query_embedding
-LIMIT limit_count;
-```
-
 ## Estratégia de Chunking
 
 Os documentos são divididos em chunks para:
@@ -161,4 +115,9 @@ Os documentos podem incluir metadados no formato JSONB:
    CREATE INDEX IF NOT EXISTS idx_documentos_embedding ON documentos USING ivfflat (embedding) WITH (lists = 100);
    CREATE INDEX IF NOT EXISTS idx_documentos_chunk_embedding ON documentos USING ivfflat (chunk_embedding) WITH (lists = 100);
    CREATE INDEX IF NOT EXISTS idx_documentos_principal_id ON documentos(documento_principal_id);
+   ```
+
+4. **Adicionar comentários (opcional)**:
+   ```sql
+   COMMENT ON TABLE documentos IS 'Tabela principal para armazenamento de documentos e seus embeddings';
    ```

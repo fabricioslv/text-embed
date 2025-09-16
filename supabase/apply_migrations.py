@@ -98,3 +98,4 @@ if __name__ == "__main__":
             print("\n❌ Erro ao preparar migrações.")
     else:
         print("\n❌ Não foi possível conectar ao Supabase. Verifique suas credenciais.")
+

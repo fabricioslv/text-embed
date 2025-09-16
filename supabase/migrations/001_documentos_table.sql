@@ -30,55 +30,6 @@ CREATE INDEX IF NOT EXISTS idx_documentos_embedding ON documentos USING ivfflat 
 CREATE INDEX IF NOT EXISTS idx_documentos_chunk_embedding ON documentos USING ivfflat (chunk_embedding) WITH (lists = 100);
 CREATE INDEX IF NOT EXISTS idx_documentos_principal_id ON documentos(documento_principal_id);
 
--- Create a view for document statistics
-CREATE OR REPLACE VIEW documentos_stats AS
-SELECT 
-    COUNT(*) as total_documentos,
-    SUM(tamanho) as tamanho_total,
-    AVG(tamanho) as tamanho_medio,
-    MIN(data) as data_primeiro,
-    MAX(data) as data_ultimo,
-    COUNT(DISTINCT tipo) as tipos_diferentes
-FROM documentos;
-
--- Create a function to get document chunks
-CREATE OR REPLACE FUNCTION get_document_chunks(doc_id INTEGER)
-RETURNS TABLE(
-    chunk_id INTEGER,
-    chunk_text TEXT,
-    chunk_embedding VECTOR(384)
-) AS $
-BEGIN
-    RETURN QUERY
-    SELECT d.chunk_id, d.chunk_text, d.chunk_embedding
-    FROM documentos d
-    WHERE d.id = doc_id OR d.documento_principal_id = doc_id
-    ORDER BY d.chunk_id;
-END;
-$ LANGUAGE plpgsql;
-
--- Create a function to search similar documents
-CREATE OR REPLACE FUNCTION search_similar_documents(query_embedding VECTOR(384), limit_count INTEGER DEFAULT 10)
-RETURNS TABLE(
-    id INTEGER,
-    nome VARCHAR(255),
-    texto TEXT,
-    similarity FLOAT
-) AS $
-BEGIN
-    RETURN QUERY
-    SELECT 
-        d.id,
-        d.nome,
-        d.texto,
-        (1 - (d.embedding <=> query_embedding)) as similarity
-    FROM documentos d
-    WHERE d.embedding IS NOT NULL
-    ORDER BY d.embedding <=> query_embedding
-    LIMIT limit_count;
-END;
-$ LANGUAGE plpgsql;
-
 -- Add comments to tables and columns for documentation
 COMMENT ON TABLE documentos IS 'Tabela principal para armazenamento de documentos e seus embeddings';
 COMMENT ON COLUMN documentos.id IS 'Identificador único do documento';
