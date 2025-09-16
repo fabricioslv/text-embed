@@ -1,5 +1,13 @@
 # Estrutura do Banco de Dados
 
+## Extensão Necessária
+
+Antes de criar a tabela, é necessário habilitar a extensão `vector`:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
 ## Tabela `documentos`
 
 A tabela `documentos` é a principal tabela do sistema, armazenando tanto documentos completos quanto chunks individuais.
@@ -30,6 +38,7 @@ A tabela `documentos` é a principal tabela do sistema, armazenando tanto docume
 4. `idx_documentos_chunk_id` - Índice na coluna `chunk_id`
 5. `idx_documentos_embedding` - Índice IVFFlat no `embedding`
 6. `idx_documentos_chunk_embedding` - Índice IVFFlat no `chunk_embedding`
+7. `idx_documentos_principal_id` - Índice na coluna `documento_principal_id`
 
 ### Views
 
@@ -57,7 +66,7 @@ Retorna todos os chunks de um documento específico:
 ```sql
 SELECT chunk_id, chunk_text, chunk_embedding
 FROM documentos
-WHERE id = doc_id OR nome = (SELECT nome FROM documentos WHERE id = doc_id LIMIT 1)
+WHERE id = doc_id OR documento_principal_id = doc_id
 ORDER BY chunk_id;
 ```
 
@@ -116,3 +125,40 @@ Os documentos podem incluir metadados no formato JSONB:
   "data_processamento": "2023-01-01T00:00:00Z"
 }
 ```
+
+## Instruções de Configuração
+
+1. **Habilitar a extensão vector**:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS vector;
+   ```
+
+2. **Criar a tabela**:
+   ```sql
+   CREATE TABLE IF NOT EXISTS documentos (
+       id SERIAL PRIMARY KEY,
+       nome VARCHAR(255) NOT NULL,
+       texto TEXT,
+       embedding VECTOR(384),
+       data TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+       tamanho INTEGER,
+       tipo VARCHAR(50),
+       chunk_id INTEGER DEFAULT 0,
+       total_chunks INTEGER DEFAULT 1,
+       chunk_text TEXT,
+       chunk_embedding VECTOR(384),
+       metadata JSONB,
+       documento_principal_id INTEGER REFERENCES documentos(id)
+   );
+   ```
+
+3. **Criar os índices**:
+   ```sql
+   CREATE INDEX IF NOT EXISTS idx_documentos_nome ON documentos(nome);
+   CREATE INDEX IF NOT EXISTS idx_documentos_data ON documentos(data);
+   CREATE INDEX IF NOT EXISTS idx_documentos_tipo ON documentos(tipo);
+   CREATE INDEX IF NOT EXISTS idx_documentos_chunk_id ON documentos(chunk_id);
+   CREATE INDEX IF NOT EXISTS idx_documentos_embedding ON documentos USING ivfflat (embedding) WITH (lists = 100);
+   CREATE INDEX IF NOT EXISTS idx_documentos_chunk_embedding ON documentos USING ivfflat (chunk_embedding) WITH (lists = 100);
+   CREATE INDEX IF NOT EXISTS idx_documentos_principal_id ON documentos(documento_principal_id);
+   ```

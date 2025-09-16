@@ -1,6 +1,9 @@
 -- Migration script for documentos table
 -- This script creates the documentos table with optimized structure for chunked document storage
 
+-- Enable the vector extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- Create the documentos table
 CREATE TABLE IF NOT EXISTS documentos (
     id SERIAL PRIMARY KEY,
@@ -14,7 +17,8 @@ CREATE TABLE IF NOT EXISTS documentos (
     total_chunks INTEGER DEFAULT 1,
     chunk_text TEXT,
     chunk_embedding VECTOR(384),
-    metadata JSONB
+    metadata JSONB,
+    documento_principal_id INTEGER REFERENCES documentos(id)
 );
 
 -- Create indexes for better performance
@@ -24,6 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_documentos_tipo ON documentos(tipo);
 CREATE INDEX IF NOT EXISTS idx_documentos_chunk_id ON documentos(chunk_id);
 CREATE INDEX IF NOT EXISTS idx_documentos_embedding ON documentos USING ivfflat (embedding) WITH (lists = 100);
 CREATE INDEX IF NOT EXISTS idx_documentos_chunk_embedding ON documentos USING ivfflat (chunk_embedding) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_documentos_principal_id ON documentos(documento_principal_id);
 
 -- Create a view for document statistics
 CREATE OR REPLACE VIEW documentos_stats AS
@@ -42,15 +47,15 @@ RETURNS TABLE(
     chunk_id INTEGER,
     chunk_text TEXT,
     chunk_embedding VECTOR(384)
-) AS $$
+) AS $
 BEGIN
     RETURN QUERY
     SELECT d.chunk_id, d.chunk_text, d.chunk_embedding
     FROM documentos d
-    WHERE d.id = doc_id OR d.nome = (SELECT nome FROM documentos WHERE id = doc_id LIMIT 1)
+    WHERE d.id = doc_id OR d.documento_principal_id = doc_id
     ORDER BY d.chunk_id;
 END;
-$$ LANGUAGE plpgsql;
+$ LANGUAGE plpgsql;
 
 -- Create a function to search similar documents
 CREATE OR REPLACE FUNCTION search_similar_documents(query_embedding VECTOR(384), limit_count INTEGER DEFAULT 10)
@@ -59,7 +64,7 @@ RETURNS TABLE(
     nome VARCHAR(255),
     texto TEXT,
     similarity FLOAT
-) AS $$
+) AS $
 BEGIN
     RETURN QUERY
     SELECT 
@@ -72,7 +77,7 @@ BEGIN
     ORDER BY d.embedding <=> query_embedding
     LIMIT limit_count;
 END;
-$$ LANGUAGE plpgsql;
+$ LANGUAGE plpgsql;
 
 -- Add comments to tables and columns for documentation
 COMMENT ON TABLE documentos IS 'Tabela principal para armazenamento de documentos e seus embeddings';
@@ -88,3 +93,4 @@ COMMENT ON COLUMN documentos.total_chunks IS 'Número total de chunks do documen
 COMMENT ON COLUMN documentos.chunk_text IS 'Texto do chunk específico';
 COMMENT ON COLUMN documentos.chunk_embedding IS 'Embedding do chunk específico';
 COMMENT ON COLUMN documentos.metadata IS 'Metadados adicionais em formato JSON';
+COMMENT ON COLUMN documentos.documento_principal_id IS 'Referência ao documento principal para chunks';

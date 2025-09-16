@@ -34,7 +34,7 @@ def apply_migrations():
         # Como estamos usando SQL migrations, vamos apenas mostrar as instruções
         print("\nPara criar a tabela 'documentos', execute o seguinte SQL no Supabase:")
         print("""
--- Criar extensão para vetores (se não existir)
+-- Habilitar a extensão vector (necessária para embeddings)
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Criar a tabela documentos
