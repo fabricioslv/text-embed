@@ -1,5 +1,9 @@
 streamlit
 sentence-transformers
-textract
 faiss-cpu
 numpy
+python-docx
+pdf2image
+pytesseract
+easyocr
+torch
