@@ -20,8 +20,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar o código da aplicação
 COPY . .
 
+# Tornar o script executável
+RUN chmod +x start.sh
+
 # Expõe a porta padrão
 EXPOSE 8000
 
 # Comando para rodar a aplicação
-CMD ["python", "app.py"]
+CMD ["./start.sh"]
