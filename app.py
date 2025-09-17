@@ -19,6 +19,11 @@ embedding_dim = 384
 index = faiss.IndexFlatL2(embedding_dim)
 documentos = []
 
+# Endpoint de healthcheck
+@app.route('/health')
+def health():
+    return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
+
 # Página HTML básica
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
@@ -52,18 +57,6 @@ HTML_TEMPLATE = '''
             <button type="submit">Buscar</button>
         </form>
     </div>
-    
-    {% if results %}
-    <div>
-        <h2>📋 Resultados</h2>
-        {% for doc in results %}
-        <div class="card">
-            <strong>📄 {{ doc.nome }}</strong><br>
-            {{ doc.texto[:300] }}...
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
 </body>
 </html>
 '''
@@ -81,7 +74,7 @@ def upload_file():
 def search():
     query = request.args.get('query', '')
     # Busca semântica básica
-    return render_template_string(HTML_TEMPLATE, results=[])
+    return jsonify({"results": []})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
