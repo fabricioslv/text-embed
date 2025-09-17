@@ -10,6 +10,7 @@ ENV PYTHONIOENCODING=utf-8
 RUN apt-get update && apt-get install -y \
     gcc \
     curl \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 # Definir diretório de trabalho
@@ -22,6 +23,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar o código da aplicação
 COPY . .
 
+# Tornar o entrypoint executável
+RUN chmod +x entrypoint.sh
+
 # Criar diretório para modelos (se necessário)
 RUN mkdir -p /root/.cache
 
@@ -29,4 +33,4 @@ RUN mkdir -p /root/.cache
 EXPOSE 8501
 
 # Comando para rodar a aplicação
-CMD ["streamlit", "run", "app.py"]
+CMD ["./entrypoint.sh"]
