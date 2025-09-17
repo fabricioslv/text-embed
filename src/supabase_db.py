@@ -11,19 +11,24 @@ load_dotenv()
 print("=== Depuração do Supabase ===")
 print("Diretório atual:", os.getcwd())
 print("Arquivo .env existe:", os.path.exists(".env"))
-print("SUPABASE_URL:", os.environ.get("SUPABASE_URL"))
-print("SUPABASE_KEY existe:", os.environ.get("SUPABASE_KEY") is not None)
+
+# Verificar variáveis de ambiente ou usar valores padrão
+url = os.environ.get("SUPABASE_URL") or "https://tpppkhqkswhkosybfqht.supabase.co"
+key = os.environ.get("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwcHBraHFrc3doa29zeWJmcWh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMzQwNDEsImV4cCI6MjA3MzYxMDA0MX0.457cMXQri2Fe3D0INTyNbM2wjKkXtB2GnUvEwU9_LiA"
+
+print("SUPABASE_URL:", url[:50] + "..." if len(url) > 50 else url)
+print("SUPABASE_KEY existe:", key is not None and len(key) > 30)
 print("=============================")
 
 class SupabaseDBManager:
     def __init__(self):
-        # Obter URL e chave do Supabase das variáveis de ambiente
-        url: str = os.environ.get("SUPABASE_URL")
-        key: str = os.environ.get("SUPABASE_KEY")
+        # Obter URL e chave do Supabase das variáveis de ambiente ou usar valores padrão
+        url: str = os.environ.get("SUPABASE_URL") or "https://tpppkhqkswhkosybfqht.supabase.co"
+        key: str = os.environ.get("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwcHBraHFrc3doa29zeWJmcWh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMzQwNDEsImV4cCI6MjA3MzYxMDA0MX0.457cMXQri2Fe3D0INTyNbM2wjKkXtB2GnUvEwU9_LiA"
         
         # Validar credenciais
         if not url or not key:
-            raise ValueError("SUPABASE_URL e SUPABASE_KEY devem ser definidos nas variáveis de ambiente")
+            raise ValueError("SUPABASE_URL e SUPABASE_KEY devem ser definidos nas variáveis de ambiente ou no código")
         
         # Criar cliente Supabase
         self.supabase: Client = create_client(url, key)

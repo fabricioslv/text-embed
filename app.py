@@ -24,8 +24,13 @@ load_dotenv()
 print("=== Depuração do App ===")
 print("Diretório atual:", os.getcwd())
 print("Arquivo .env existe:", os.path.exists(".env"))
-print("SUPABASE_URL:", os.environ.get("SUPABASE_URL"))
-print("SUPABASE_KEY existe:", os.environ.get("SUPABASE_KEY") is not None)
+
+# Verificar variáveis de ambiente ou usar valores padrão
+SUPABASE_URL = os.environ.get("SUPABASE_URL") or "https://tpppkhqkswhkosybfqht.supabase.co"
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwcHBraHFrc3doa29zeWJmcWh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMzQwNDEsImV4cCI6MjA3MzYxMDA0MX0.457cMXQri2Fe3D0INTyNbM2wjKkXtB2GnUvEwU9_LiA"
+
+print("SUPABASE_URL:", SUPABASE_URL[:50] + "..." if len(SUPABASE_URL) > 50 else SUPABASE_URL)
+print("SUPABASE_KEY existe:", SUPABASE_KEY is not None and len(SUPABASE_KEY) > 30)
 print("========================")
 
 # Configurações iniciais
