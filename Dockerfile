@@ -1,4 +1,4 @@
-# Dockerfile simplificado para aplicação Streamlit no Railway
+# Dockerfile para aplicação Flask
 FROM python:3.12-slim
 
 # Definir variáveis de ambiente
@@ -20,8 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar o código da aplicação
 COPY . .
 
-# Expõe a porta padrão do Streamlit
-EXPOSE 8501
+# Expõe a porta padrão
+EXPOSE 8000
 
 # Comando para rodar a aplicação
-CMD ["streamlit", "run", "app.py"]
+CMD ["python", "app.py"]
