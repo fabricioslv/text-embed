@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template_string, send_file
+from flask import Flask, request, jsonify, render_template_string
 import os
 from sentence_transformers import SentenceTransformer
 import json
@@ -15,8 +15,14 @@ import uuid
 import threading
 import time
 from collections import defaultdict
+import tempfile
+import shutil
 
 app = Flask(__name__)
+
+# Configurações
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB limite por arquivo
+UPLOAD_FOLDER = tempfile.mkdtemp()
 
 # Inicialização
 model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -32,55 +38,14 @@ estatisticas = {
     "espaco_utilizado": 0,
     "ultimo_upload": None,
     "processando": False,
-    "fila_processamento": []
+    "fila_processamento": [],
+    "erros": []
 }
 
 # Lock para operações thread-safe
 lock = threading.Lock()
 
-# Classe para gerenciar fila de processamento
-class ProcessamentoFila:
-    def __init__(self):
-        self.fila = []
-        self.processando = False
-        self.thread = None
-    
-    def adicionar_documento(self, documento):
-        with lock:
-            self.fila.append(documento)
-            estatisticas["fila_processamento"].append(documento)
-    
-    def iniciar_processamento(self):
-        if not self.processando:
-            self.processando = True
-            self.thread = threading.Thread(target=self._processar_fila)
-            self.thread.start()
-    
-    def _processar_fila(self):
-        while True:
-            with lock:
-                if not self.fila:
-                    self.processando = False
-                    break
-            
-            # Processar próximo documento
-            with lock:
-                if self.fila:
-                    documento = self.fila.pop(0)
-                    estatisticas["fila_processamento"] = self.fila
-            
-            # Simular processamento
-            time.sleep(2)  # Simular tempo de processamento
-            
-            with lock:
-                estatisticas["total_documentos"] += 1
-                estatisticas["ultimo_upload"] = datetime.now().strftime("%H:%M:%S")
-        
-        self.processando = False
-
-fila_processamento = ProcessamentoFila()
-
-# HTML Template melhorado
+# HTML Template completo
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -198,6 +163,11 @@ HTML_TEMPLATE = '''
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
+        
+        .file-drop-highlight {
+            border-color: #3f37c9 !important;
+            background-color: rgba(255,255,255,0.98) !important;
+        }
     </style>
 </head>
 <body>
@@ -264,23 +234,23 @@ HTML_TEMPLATE = '''
         <div class="row">
             <!-- Left Column - Upload -->
             <div class="col-lg-6 mb-4">
-                <div class="card upload-area p-5 text-center" onclick="document.getElementById('fileInput').click()">
+                <div class="card upload-area p-5 text-center" id="uploadArea">
                     <i class="fas fa-cloud-upload-alt fa-3x mb-4 text-primary"></i>
                     <h3 class="mb-3">Upload de Documentos</h3>
                     <p class="text-muted mb-4">
                         Suporte para PDF, DOCX e TXT<br>
                         <small>Arraste e solte ou clique para selecionar</small>
                     </p>
-                    <button class="btn btn-primary btn-lg">
+                    <button class="btn btn-primary btn-lg" onclick="document.getElementById('fileInput').click()">
                         <i class="fas fa-folder-open me-2"></i>Selecionar Arquivos
                     </button>
-                    <input type="file" id="fileInput" name="file" accept=".pdf,.docx,.txt" multiple style="display: none;" onchange="handleFileSelect(event)">
+                    <input type="file" id="fileInput" name="files" accept=".pdf,.docx,.txt" multiple style="display: none;" onchange="handleFileSelect(event)">
                 </div>
 
                 <!-- Batch Processing Info -->
                 <div class="card mt-4 p-4">
                     <h3 class="mb-4"><i class="fas fa-tasks me-2"></i>Fila de Processamento</h3>
-                    {% if estatisticas.fila_processamento %}
+                    {% if estatisticas.fila_processamento and estatisticas.fila_processamento|length > 0 %}
                         <div class="alert alert-warning">
                             <i class="fas fa-hourglass-half me-2"></i>
                             {{ estatisticas.fila_processamento|length }} documentos na fila de processamento
@@ -291,19 +261,28 @@ HTML_TEMPLATE = '''
                             Nenhum documento na fila de processamento
                         </div>
                     {% endif %}
+                    
+                    {% if estatisticas.erros and estatisticas.erros|length > 0 %}
+                        <div class="alert alert-danger mt-3">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {{ estatisticas.erros|length }} erros encontrados
+                            <button class="btn btn-sm btn-outline-danger ms-2" onclick="clearErrors()">Limpar Erros</button>
+                        </div>
+                    {% endif %}
                 </div>
 
                 <!-- Search Section -->
                 <div class="card mt-4 p-4">
                     <h3 class="mb-4"><i class="fas fa-search me-2"></i>Busca Semântica</h3>
-                    <form method="GET" action="/search">
+                    <form id="searchForm">
                         <div class="input-group mb-3">
-                            <input type="text" class="form-control" name="query" placeholder="Digite sua pergunta ou termo de busca..." required>
+                            <input type="text" class="form-control" id="searchQuery" placeholder="Digite sua pergunta ou termo de busca..." required>
                             <button class="btn btn-primary" type="submit">
                                 <i class="fas fa-search"></i>
                             </button>
                         </div>
                     </form>
+                    <div id="searchResults"></div>
                 </div>
             </div>
 
@@ -367,6 +346,9 @@ HTML_TEMPLATE = '''
                         <div class="col-6">
                             <p><strong>OCR:</strong><br>EasyOCR (PT)</p>
                         </div>
+                        <div class="col-12">
+                            <p><strong>Limite Arquivo:</strong><br>50MB por arquivo</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -376,8 +358,8 @@ HTML_TEMPLATE = '''
         <div class="card p-4 mt-4">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h3><i class="fas fa-history me-2"></i>Documentos Recentes</h3>
-                <a href="/documents" class="btn btn-outline-primary btn-sm">
-                    <i class="fas fa-list me-1"></i>Ver Todos
+                <a href="/api/documents" class="btn btn-outline-primary btn-sm" target="_blank">
+                    <i class="fas fa-code me-1"></i>API
                 </a>
             </div>
             {% if documentos %}
@@ -407,37 +389,6 @@ HTML_TEMPLATE = '''
                 </div>
             {% endif %}
         </div>
-
-        <!-- Results Section -->
-        {% if resultados %}
-        <div class="card result-card mt-5 p-4">
-            <h3 class="mb-4"><i class="fas fa-list me-2"></i>Resultados da Busca ({{ resultados|length }} encontrados)</h3>
-            {% for resultado in resultados %}
-            <div class="mb-4 p-3 border rounded">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h5>
-                        <i class="fas fa-file me-2 text-primary"></i>{{ resultado.nome }}
-                    </h5>
-                    <span class="badge bg-info">Similaridade: {{ "%.2f"|format(resultado.similaridade * 100) }}%</span>
-                </div>
-                <p class="text-muted">{{ resultado.texto[:300] }}{% if resultado.texto|length > 300 %}...{% endif %}</p>
-                <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">
-                        <i class="fas fa-calendar me-1"></i>{{ resultado.data }}
-                    </small>
-                    <div>
-                        <button class="btn btn-sm btn-outline-primary me-2">
-                            <i class="fas fa-download me-1"></i>Exportar
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary">
-                            <i class="fas fa-eye me-1"></i>Detalhes
-                        </button>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
     </div>
 
     <!-- Loading Modal -->
@@ -460,69 +411,142 @@ HTML_TEMPLATE = '''
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Função para lidar com seleção de arquivos
         function handleFileSelect(event) {
             const files = event.target.files;
             if (files.length > 0) {
-                // Mostrar modal de carregamento
-                const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
-                modal.show();
-                
-                // Criar FormData para enviar múltiplos arquivos
-                const formData = new FormData();
-                for (let i = 0; i < files.length; i++) {
-                    formData.append('files', files[i]);
-                }
-                
-                // Enviar todos os arquivos de uma vez
-                fetch('/upload_batch', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    setTimeout(() => {
-                        modal.hide();
-                        if (data.status === 'success') {
-                            alert(`${data.processed} documentos processados com sucesso!`);
-                            location.reload();
-                        } else {
-                            alert('Erro ao processar documentos: ' + data.message);
-                        }
-                    }, 1000);
-                })
-                .catch(error => {
-                    console.error('Erro:', error);
-                    modal.hide();
-                    alert('Erro ao enviar documentos');
-                });
+                processFiles(files);
             }
+        }
+        
+        // Função para processar múltiplos arquivos
+        function processFiles(files) {
+            // Mostrar modal de carregamento
+            const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+            modal.show();
+            
+            // Criar FormData para enviar múltiplos arquivos
+            const formData = new FormData();
+            let fileCount = 0;
+            
+            for (let i = 0; i < files.length; i++) {
+                if (files[i].size > 50 * 1024 * 1024) { // 50MB
+                    alert(`Arquivo ${files[i].name} excede o limite de 50MB. Será ignorado.`);
+                    continue;
+                }
+                formData.append('files', files[i]);
+                fileCount++;
+            }
+            
+            if (fileCount === 0) {
+                modal.hide();
+                return;
+            }
+            
+            // Enviar todos os arquivos de uma vez
+            fetch('/api/upload_batch', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                setTimeout(() => {
+                    modal.hide();
+                    if (data.status === 'success') {
+                        alert(`${data.processed} documentos processados com sucesso!`);
+                        location.reload();
+                    } else if (data.status === 'partial_success') {
+                        let message = `${data.processed} documentos processados`;
+                        if (data.errors && data.errors.length > 0) {
+                            message += `, ${data.errors.length} com erro`;
+                        }
+                        alert(message);
+                        location.reload();
+                    } else {
+                        alert('Erro ao processar documentos: ' + data.message);
+                    }
+                }, 1000);
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                modal.hide();
+                alert('Erro ao enviar documentos');
+            });
+        }
+        
+        // Função para limpar erros
+        function clearErrors() {
+            fetch('/api/clear_errors', {
+                method: 'POST'
+            })
+            .then(() => location.reload());
+        }
+        
+        // Função de busca
+        document.getElementById('searchForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const query = document.getElementById('searchQuery').value;
+            if (!query.trim()) return;
+            
+            fetch(`/api/search?query=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                displaySearchResults(data.results);
+            })
+            .catch(error => {
+                console.error('Erro na busca:', error);
+                document.getElementById('searchResults').innerHTML = 
+                    '<div class="alert alert-danger">Erro ao realizar busca</div>';
+            });
+        });
+        
+        // Função para exibir resultados da busca
+        function displaySearchResults(results) {
+            const container = document.getElementById('searchResults');
+            if (!results || results.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">Nenhum resultado encontrado</div>';
+                return;
+            }
+            
+            let html = `<h4 class="mb-3">${results.length} resultados encontrados</h4>`;
+            results.forEach(result => {
+                html += `
+                <div class="card mb-3 p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6><i class="fas fa-file me-2 text-primary"></i>${result.nome}</h6>
+                        <span class="badge bg-info">Similaridade: ${(result.similaridade * 100).toFixed(1)}%</span>
+                    </div>
+                    <p class="text-muted">${result.texto.substring(0, 200)}${result.texto.length > 200 ? '...' : ''}</p>
+                    <small class="text-muted">${result.data}</small>
+                </div>
+                `;
+            });
+            
+            container.innerHTML = html;
         }
         
         // Drag and drop support
         document.addEventListener('DOMContentLoaded', function() {
-            const uploadArea = document.querySelector('.upload-area');
+            const uploadArea = document.getElementById('uploadArea');
             
             uploadArea.addEventListener('dragover', function(e) {
                 e.preventDefault();
-                uploadArea.style.borderColor = '#3f37c9';
-                uploadArea.style.backgroundColor = 'rgba(255,255,255,0.98)';
+                uploadArea.classList.add('file-drop-highlight');
             });
             
             uploadArea.addEventListener('dragleave', function(e) {
                 e.preventDefault();
-                uploadArea.style.borderColor = '#4361ee';
-                uploadArea.style.backgroundColor = 'rgba(255,255,255,0.9)';
+                uploadArea.classList.remove('file-drop-highlight');
             });
             
             uploadArea.addEventListener('drop', function(e) {
                 e.preventDefault();
-                uploadArea.style.borderColor = '#4361ee';
-                uploadArea.style.backgroundColor = 'rgba(255,255,255,0.9)';
+                uploadArea.classList.remove('file-drop-highlight');
                 
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     document.getElementById('fileInput').files = files;
-                    handleFileSelect({target: document.getElementById('fileInput')});
+                    processFiles(files);
                 }
             });
         });
@@ -538,22 +562,23 @@ def health():
         "timestamp": datetime.now().isoformat(),
         "documents_processed": len(documentos),
         "total_embeddings": index.ntotal if index else 0,
-        "processing_queue": len(getattr(estatisticas, 'fila_processamento', [])),
-        "is_processing": getattr(estatisticas, 'processando', False)
+        "processing_queue": len(estatisticas.get('fila_processamento', [])),
+        "is_processing": estatisticas.get('processando', False)
     })
 
 @app.route('/')
 def home():
-    # Garantir que fila_processamento exista
+    # Garantir que as estruturas existam
     if 'fila_processamento' not in estatisticas:
         estatisticas['fila_processamento'] = []
+    if 'erros' not in estatisticas:
+        estatisticas['erros'] = []
     
     return render_template_string(HTML_TEMPLATE, 
                                 estatisticas=estatisticas,
-                                documentos=documentos,
-                                resultados=None)
+                                documentos=documentos)
 
-@app.route('/upload_batch', methods=['POST'])
+@app.route('/api/upload_batch', methods=['POST'])
 def upload_batch():
     try:
         files = request.files.getlist('files')
@@ -567,7 +592,16 @@ def upload_batch():
         for file in files:
             if file and file.filename:
                 try:
-                    # Simular processamento do documento
+                    # Verificar tamanho do arquivo
+                    file.seek(0, 2)  # Ir para o final do arquivo
+                    file_size = file.tell()
+                    file.seek(0)  # Voltar ao início
+                    
+                    if file_size > MAX_FILE_SIZE:
+                        errors.append(f"Arquivo {file.filename} excede o limite de 50MB")
+                        continue
+                    
+                    # Processar o conteúdo do arquivo
                     file_content = file.read()
                     
                     # Atualizar estatísticas
@@ -582,19 +616,29 @@ def upload_batch():
                         "nome": file.filename,
                         "tamanho": len(file_content),
                         "data": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        "texto": f"Documento {file.filename} processado com sucesso!"
+                        "texto": f"Documento {file.filename} processado com sucesso! Tamanho: {len(file_content)} bytes"
                     })
                     
                     processed_count += 1
                     
                 except Exception as e:
-                    errors.append(f"Erro ao processar {file.filename}: {str(e)}")
+                    error_msg = f"Erro ao processar {file.filename}: {str(e)}"
+                    errors.append(error_msg)
+                    with lock:
+                        estatisticas["erros"].append(error_msg)
         
-        if errors:
+        # Retornar resposta apropriada
+        if errors and processed_count > 0:
             return jsonify({
                 "status": "partial_success", 
                 "message": f"{processed_count} documentos processados, {len(errors)} com erro",
                 "processed": processed_count,
+                "errors": errors
+            })
+        elif errors:
+            return jsonify({
+                "status": "error", 
+                "message": f"Nenhum documento processado. {len(errors)} erros encontrados",
                 "errors": errors
             })
         else:
@@ -605,14 +649,20 @@ def upload_batch():
             })
         
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
+        error_msg = f"Erro geral no processamento: {str(e)}"
+        with lock:
+            estatisticas["erros"].append(error_msg)
+        return jsonify({"status": "error", "message": error_msg})
 
-@app.route('/search')
+@app.route('/api/search')
 def search():
     query = request.args.get('query', '')
+    if not query:
+        return jsonify({"results": []})
+    
     # Busca semântica simulada
     resultados = []
-    if query and documentos:
+    if documentos:
         # Simular busca semântica com resultados aleatórios
         import random
         for doc in documentos[-5:]:  # Últimos 5 documentos
@@ -623,20 +673,13 @@ def search():
                 "similaridade": random.uniform(0.7, 0.95)  # Similaridade simulada
             })
     
-    # Garantir que fila_processamento exista
-    if 'fila_processamento' not in estatisticas:
-        estatisticas['fila_processamento'] = []
-    
-    return render_template_string(HTML_TEMPLATE, 
-                                estatisticas=estatisticas,
-                                documentos=documentos,
-                                resultados=resultados)
+    return jsonify({"results": resultados})
 
-@app.route('/stats')
+@app.route('/api/stats')
 def stats():
     return jsonify(estatisticas)
 
-@app.route('/documents')
+@app.route('/api/documents')
 def list_documents():
     return jsonify({
         "total": len(documentos),
@@ -644,20 +687,28 @@ def list_documents():
         "statistics": estatisticas
     })
 
-@app.route('/reset', methods=['POST'])
+@app.route('/api/clear_errors', methods=['POST'])
+def clear_errors():
+    """Limpar lista de erros"""
+    with lock:
+        estatisticas["erros"] = []
+    return jsonify({"status": "success", "message": "Erros limpos com sucesso!"})
+
+@app.route('/api/reset', methods=['POST'])
 def reset_system():
     """Resetar o sistema (apenas para desenvolvimento)"""
-    global documentos, estatisticas
+    global documentos
     with lock:
         documentos = []
-        estatisticas = {
+        estatisticas.update({
             "total_documentos": 0,
             "total_embeddings": 0,
             "espaco_utilizado": 0,
             "ultimo_upload": None,
             "processando": False,
-            "fila_processamento": []
-        }
+            "fila_processamento": [],
+            "erros": []
+        })
     return jsonify({"status": "success", "message": "Sistema resetado com sucesso!"})
 
 if __name__ == '__main__':
