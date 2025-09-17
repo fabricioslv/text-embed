@@ -1,5 +1,3 @@
-# Configurações do Streamlit para diagnóstico
-
 [theme]
 primaryColor="#4CAF50"
 backgroundColor="#FFFFFF"
@@ -10,14 +8,8 @@ font="sans serif"
 [server]
 enableCORS = false
 enableXsrfProtection = false
-maxUploadSize = 200
-maxMessageSize = 200
+port = 8501
+address = "0.0.0.0"
 
 [browser]
 gatherUsageStats = false
-
-[client]
-showErrorDetails = "full"
-
-[runner]
-fastReruns = true
