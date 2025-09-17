@@ -4,11 +4,9 @@ app.py
 requirements.txt
 runtime.txt
 Procfile
-# .env (comentado para permitir versionamento temporário)
 documentos.db
 
 # Diretórios
-# src/ (comentado para permitir versionamento)
 supabase/
 
 # Arquivos de configuração
