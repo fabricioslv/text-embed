@@ -25,7 +25,7 @@ COPY . .
 # Criar diretório para modelos (se necessário)
 RUN mkdir -p /root/.cache
 
-# Expõe a porta que o Railway usa
+# Expõe a porta padrão do Streamlit
 EXPOSE 8501
 
 # Comando para rodar a aplicação
